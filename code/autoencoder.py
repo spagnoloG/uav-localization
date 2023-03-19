@@ -300,13 +300,6 @@ class ConvolutionalAutoencoder:
     def train(
         self, loss_function, epochs, batch_size, training_set, validation_set, test_set
     ):
-        #  creating log
-        log_dict = {
-            "training_loss_per_batch": [],
-            "validation_loss_per_batch": [],
-            "visualizations": [],
-        }
-
         #  defining weight initialization function
         def init_weights(module):
             if isinstance(module, nn.Conv2d):
@@ -350,11 +343,6 @@ class ConvolutionalAutoencoder:
                 #  optimizing weights
                 self.optimizer.step()
 
-                # --------------
-                # LOGGING
-                # --------------
-                log_dict["training_loss_per_batch"].append(loss.item())
-
             # --------------
             # VALIDATION
             # --------------
@@ -369,11 +357,6 @@ class ConvolutionalAutoencoder:
                     val_loss = loss_function(
                         output, val_images.view(-1, 1, IMG_H, IMG_W)
                     )
-
-                # --------------
-                # LOGGING
-                # --------------
-                log_dict["validation_loss_per_batch"].append(val_loss.item())
 
             # --------------
             # VISUALISATION
@@ -404,7 +387,6 @@ class ConvolutionalAutoencoder:
                         f"Original/Reconstructed, training loss: {round(loss.item(), 4)} validation loss: {round(val_loss.item(), 4)}"
                     )
                     plt.imshow(grid)
-                    log_dict["visualizations"].append(grid)
                     plt.axis("off")
 
                     # Check if directory exists, if not create it
@@ -417,8 +399,6 @@ class ConvolutionalAutoencoder:
                     plt.clf()
                     plt.close()
                     plt_ix += 1
-
-        return log_dict
 
     def autoencode(self, x):
         return self.network(x)
@@ -493,7 +473,7 @@ def main():
 
     training_data, validation_data, test_data = preprocess_data()
     model = ConvolutionalAutoencoder(Autoencoder(Encoder(), Decoder()))
-    _ = model.train(
+    model.train(
         nn.MSELoss(),
         epochs=args.epochs,
         batch_size=args.batch_size,
