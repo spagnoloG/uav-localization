@@ -477,14 +477,13 @@ def main():
     parser = argparse.ArgumentParser(
         description="Convolutional Autoencoder for GE images"
     )
-    parser.add_argument("--batch-size", type=int, default=8)
+    parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--epochs", type=int, default=60)
     parser.add_argument("--lr", type=float, default=0.01)
     parser.add_argument("--no-cuda", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.no_cuda:
-        print("Using CPU")
         device = torch.device("cpu")
 
     if device == torch.device("cuda"):
