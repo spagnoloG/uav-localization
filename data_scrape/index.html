@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <script
+        src="#"
+        defer></script>
+    <script src="https://printjs-4de6.kxcdn.com/print.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+</head>
+
+<body>
+    <div id="map" style="width: 2000px; height: 1000px;"></div>
+</body>
+<script>
+    //let lat_start = 45.9887;
+    //let lng_start = 14.4431;
+    //let lat_end = 46.1339;
+    //let lng_end = 14.5910;
+    //tilts = [0, 45]; // Tilt goes from 0 to 90
+    // headings go from 0 to 360
+    //headings = [0, 90, 180, 270];
+    // Dej to nrdi pol s pitonko
+    const queryString = window.location.search;
+    console.log(queryString);
+    const urlParams = new URLSearchParams(queryString);
+    const lt = parseFloat(urlParams.get('lat'));
+    const lg = parseFloat(urlParams.get('lng'));
+    const tilt = parseInt(urlParams.get('tilt'));
+    const heading = parseInt(urlParams.get('heading'));
+    console.log(lt, lg, tilt, heading);
+    window.onload = async () => {
+           map = new google.maps.Map(document.getElementById("map"), {
+               center: {
+                   lat: lt,
+                   lng: lg, 
+               },
+               zoom: 19,
+               mapTypeId: "satellite",
+               // hide the default map controls
+               disableDefaultUI: true,
+               // disable watermark hehe
+               clickableIcons: false,
+               
+           });
+           map.setTilt(tilt); // 0, 45
+           map.setHeading(heading); // 0, 90, 180, 270
+           await new Promise(r => setTimeout(r, 1000));
+    }
+ 
+
+</script>
+
+</html>

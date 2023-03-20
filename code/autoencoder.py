@@ -30,6 +30,10 @@ IMG_H = 160  # On better gpu use 256 and adam optimizer
 IMG_W = IMG_H * 2
 DATASET_PATHS = [
     "../../diplomska/datasets/oj/montreal_trial1/ge_images/images/",
+    #"../../diplomska/datasets/oj/montreal_trial1/teach/images/",
+    #"../../diplomska/datasets/oj/suffield_trial1/teach/images/",
+    #"../../diplomska/datasets/oj/utiascircle_trial1/teach/images/",
+    #"../../diplomska/datasets/oj/utiasday_trial1/teach/images/",
 ]
 
 #  configuring device
@@ -154,7 +158,7 @@ class Encoder(nn.Module):
                 stride=stride,
             ),
             nn.BatchNorm2d(out_channels),
-            nn.Dropout(0.3),
+            nn.Dropout(0.4),
             act_fn,
             nn.Conv2d(
                 in_channels=out_channels,
@@ -163,7 +167,6 @@ class Encoder(nn.Module):
                 stride=stride,
             ),
             nn.BatchNorm2d(out_channels * 2),
-            nn.Dropout(0.2),
             act_fn,
             nn.Conv2d(
                 in_channels=out_channels * 2,
@@ -172,7 +175,7 @@ class Encoder(nn.Module):
                 stride=stride,
             ),
             nn.BatchNorm2d(out_channels * 4),
-            nn.Dropout(0.1),
+            nn.Dropout(0.3),
             act_fn,
             nn.Conv2d(
                 in_channels=out_channels * 4,
@@ -181,6 +184,7 @@ class Encoder(nn.Module):
                 stride=stride,
             ),
             nn.BatchNorm2d(out_channels * 8),
+            nn.Dropout(0.1),
             act_fn,
             nn.Conv2d(
                 in_channels=out_channels * 8,
@@ -371,9 +375,7 @@ class ConvolutionalAutoencoder:
                     #  reconstructing images
                     output = self.network(val_images)
                     #  computing validation loss
-                    val_loss = loss_function(
-                        output, val_images.view(-1, 1, IMG_H, IMG_W)
-                    )
+                    val_loss = loss_function(output.flatten(), val_images.flatten())
 
             # --------------
             # VISUALISATION
@@ -402,9 +404,7 @@ class ConvolutionalAutoencoder:
                     grid = grid.permute(1, 2, 0)
                     plt.figure(dpi=170)
                     plt.title(
-                        f"Original/Reconstructed, training loss: \
-                        {round(loss.item(), 4)} validation loss: \
-                        {round(val_loss.item(), 4)}"
+                        f"Original/Reconstructed, training loss: {round(loss.item(), 4)} validation loss: {round(val_loss.item(), 4)}"
                     )
                     plt.imshow(grid)
                     plt.axis("off")
@@ -504,8 +504,7 @@ def preprocess_data():
         test_images.extend(test)
 
     print(
-        f"Training on {len(training_images)} images, validating on \
-                {len(validation_images)} images, testing on {len(test_images)} images"
+        f"Training on {len(training_images)} images, validating on {len(validation_images)} images, testing on {len(test_images)} images"
     )
     #  creating pytorch datasets
     training_data = GEDataset(
@@ -564,7 +563,7 @@ def main():
         training_data, validation_data, test_data = preprocess_data()
         model = ConvolutionalAutoencoder(Autoencoder(Encoder(), Decoder()))
         model.train(
-            nn.MSELoss(),
+            nn.MSELoss(reduction="sum"),
             epochs=args.epochs,
             batch_size=args.batch_size,
             training_set=training_data,
@@ -576,7 +575,7 @@ def main():
     elif args.test:
         t, v, td = preprocess_data()
         model = ConvolutionalAutoencoder(Autoencoder(Encoder(), Decoder()))
-        model.test(nn.MSELoss(), td)
+        model.test(nn.MSELoss(reduction="sum"), td)
 
     elif args.encode:
         t, v, td = preprocess_data()
