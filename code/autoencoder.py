@@ -29,11 +29,7 @@ resource.setrlimit(resource.RLIMIT_AS, (memory_limit_gb * 1024**3, hard))
 IMG_H = 160  # On better gpu use 256 and adam optimizer
 IMG_W = IMG_H * 2
 DATASET_PATHS = [
-    "../../diplomska/datasets/oj/montreal_trial1/ge_images/images/",
-    #"../../diplomska/datasets/oj/montreal_trial1/teach/images/",
-    #"../../diplomska/datasets/oj/suffield_trial1/teach/images/",
-    #"../../diplomska/datasets/oj/utiascircle_trial1/teach/images/",
-    #"../../diplomska/datasets/oj/utiasday_trial1/teach/images/",
+    "../data_scrape/dataset/dataset/",
 ]
 
 #  configuring device
@@ -68,47 +64,36 @@ class GEImagePreprocess:
         self.patch_h = patch_h
 
     def load_images(self):
-        images = os.listdir(self.path)
-        for image in tqdm(range(len(images)), desc="Loading images"):
-            if not (images[image].endswith(".jpg") or images[image].endswith(".png")):
-                continue
-            img = Image.open(self.path + images[image])
-            if image % 10 == 0:
-                self.validation_set.append(self.preprocess_image(img))
-            if image % 10 == 1:
-                self.test_set.append(self.preprocess_image(img))
-            else:
-                self.training_set.append(self.preprocess_image(img))
-
+        self.load_images_recursively(self.path)
+        self.split_dataset()
         return self.training_set, self.validation_set, self.test_set
 
-    def preprocess_image(self, image):
-        # ---------
-        # DEPRECATED
-        # ---------
-        # width, height = image.size
-        # num_patches_w = width // self.patch_w
-        # num_patches_h = height // self.patch_h
+    def load_images_recursively(self, path):
+        images = os.listdir(path)
+        for image in images:
+            if os.path.isdir(path + image):
+                self.load_images_recursively(path + image + "/")
+            if image.endswith(".jpeg"):
+                img = Image.open(path + image)
+                self.training_set.append(self.preprocess_image(img))
 
-        # for i in range(num_patches_w):
-        #    for j in range(num_patches_h):
-        #        patch = image.crop(
-        #            (
-        #                i * self.patch_w,
-        #                j * self.patch_h,
-        #                (i + 1) * self.patch_w,
-        #                (j + 1) * self.patch_h,
-        #            )
-        #        )
-        #        patch = patch.convert("L")
-        #        patch = np.array(patch).astype(np.float32)
-        #        patch = patch / 255
-        #        if (i + j) % 30 == 0:
-        #            self.validation_set.append(patch)
-        #        if (i + j) % 30 == 1:
-        #            self.test_set.append(patch)
-        #        else:
-        #            self.training_set.append(patch)
+    def split_dataset(self):
+            training_set = []
+            validation_set = []
+            test_set = []
+    
+            for image in tqdm(range(len(self.training_set)), desc="Splitting dataset"):
+                if image % 30 == 0:
+                    validation_set.append(self.training_set[image])
+                elif image % 30 == 1:
+                    test_set.append(self.training_set[image])
+                else:
+                    training_set.append(self.training_set[image])
+            self.training_set = training_set
+            self.validation_set = validation_set
+            self.test_set = test_set
+    
+    def preprocess_image(self, image):
         image = image.resize((IMG_W, IMG_H))
         image = image.convert("L")
         image = np.array(image).astype(np.float32)
@@ -138,6 +123,7 @@ class Encoder(nn.Module):
         in_channels=1,
         out_channels=128,
         latent_dim=1000,
+        kernel_size=2,
         stride=2,
         act_fn=nn.LeakyReLU(),
         debug=False,
@@ -154,7 +140,7 @@ class Encoder(nn.Module):
             nn.Conv2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
-                kernel_size=2,
+                kernel_size=kernel_size,
                 stride=stride,
             ),
             nn.BatchNorm2d(out_channels),
@@ -163,24 +149,25 @@ class Encoder(nn.Module):
             nn.Conv2d(
                 in_channels=out_channels,
                 out_channels=out_channels * 2,
-                kernel_size=2,
+                kernel_size=kernel_size,
                 stride=stride,
             ),
             nn.BatchNorm2d(out_channels * 2),
+            nn.Dropout(0.3),
             act_fn,
             nn.Conv2d(
                 in_channels=out_channels * 2,
                 out_channels=out_channels * 4,
-                kernel_size=2,
+                kernel_size=kernel_size,
                 stride=stride,
             ),
             nn.BatchNorm2d(out_channels * 4),
-            nn.Dropout(0.3),
+            nn.Dropout(0.2),
             act_fn,
             nn.Conv2d(
                 in_channels=out_channels * 4,
                 out_channels=out_channels * 8,
-                kernel_size=2,
+                kernel_size=kernel_size,
                 stride=stride,
             ),
             nn.BatchNorm2d(out_channels * 8),
@@ -311,7 +298,7 @@ class ConvolutionalAutoencoder:
         self.network = autoencoder
         self.optimizer = torch.optim.RMSprop(
             self.network.parameters(),
-            lr=0.01,
+            lr=1e-3,
             alpha=0.99,
             eps=1e-08,
             weight_decay=0,
