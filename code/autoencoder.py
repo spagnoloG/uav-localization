@@ -15,6 +15,8 @@ from PIL import Image
 import resource
 import argparse
 import pickle
+from multiprocessing import Pool
+from functools import partial
 
 # -------------
 # MEMORY SAFETY
@@ -29,8 +31,9 @@ resource.setrlimit(resource.RLIMIT_AS, (memory_limit_gb * 1024**3, hard))
 IMG_H = 160  # On better gpu use 256 and adam optimizer
 IMG_W = IMG_H * 2
 DATASET_PATHS = [
-    "../data_scrape/dataset/dataset/",
+    "../datasets/train/",
 ]
+LINE="\n----------------------------------------\n"
 
 #  configuring device
 if torch.cuda.is_available():
@@ -60,39 +63,45 @@ class GEImagePreprocess:
         self.training_set = []
         self.validation_set = []
         self.test_set = []
+        self.entry_paths = []
         self.patch_w = patch_w
         self.patch_h = patch_h
 
     def load_images(self):
-        self.load_images_recursively(self.path)
-        self.split_dataset()
+        self.get_entry_paths(self.path) 
+        load_image_partial = partial(self.load_image_helper)
+        with Pool() as pool:
+            results = pool.map(load_image_partial, self.entry_paths)
+        self.split_dataset(results)
         return self.training_set, self.validation_set, self.test_set
-
-    def load_images_recursively(self, path):
-        images = os.listdir(path)
-        for image in images:
-            if os.path.isdir(path + image):
-                self.load_images_recursively(path + image + "/")
-            if image.endswith(".jpeg"):
-                img = Image.open(path + image)
-                self.training_set.append(self.preprocess_image(img))
-
-    def split_dataset(self):
-            training_set = []
-            validation_set = []
-            test_set = []
     
-            for image in tqdm(range(len(self.training_set)), desc="Splitting dataset"):
-                if image % 30 == 0:
-                    validation_set.append(self.training_set[image])
-                elif image % 30 == 1:
-                    test_set.append(self.training_set[image])
-                else:
-                    training_set.append(self.training_set[image])
-            self.training_set = training_set
-            self.validation_set = validation_set
-            self.test_set = test_set
-    
+    def load_image_helper(self, entry_path):
+        try:
+            img = Image.open(entry_path)
+        except PIL.UnidentifiedImageError as e:
+            print("Could not open an image: ", entry_path)
+            print(e)
+            return None
+        return self.preprocess_image(img)
+
+    def get_entry_paths(self, path):
+        entries = os.listdir(path)
+        for entry in entries:
+            entry_path = path + "/" + entry 
+            if os.path.isdir(entry_path):
+                self.get_entry_paths(entry_path + "/")
+            if entry_path.endswith(".jpeg"):
+                self.entry_paths.append(entry_path)
+
+    def split_dataset(self, dataset):
+        for image in tqdm(range(len(dataset)), desc="Splitting dataset"):
+            if image % 30 == 0:
+                self.validation_set.append(dataset[image])
+            elif image % 30 == 1:
+                self.test_set.append(dataset[image])
+            else:
+                self.training_set.append(dataset[image])
+
     def preprocess_image(self, image):
         image = image.resize((IMG_W, IMG_H))
         image = image.convert("L")
@@ -490,9 +499,6 @@ def preprocess_data():
         validation_images.extend(val)
         test_images.extend(test)
 
-    print(
-        f"Training on {len(training_images)} images, validating on {len(validation_images)} images, testing on {len(test_images)} images"
-    )
     #  creating pytorch datasets
     training_data = GEDataset(
         training_images,
@@ -560,12 +566,12 @@ def main():
         model.store_model()
 
     elif args.test:
-        t, v, td = preprocess_data()
+        _, _, td = preprocess_data()
         model = ConvolutionalAutoencoder(Autoencoder(Encoder(), Decoder()))
         model.test(nn.MSELoss(reduction="sum"), td)
 
     elif args.encode:
-        t, v, td = preprocess_data()
+        _, _, td = preprocess_data()
         model = ConvolutionalAutoencoder(Autoencoder(Encoder(), Decoder()))
         model.encode_images(td)
 
